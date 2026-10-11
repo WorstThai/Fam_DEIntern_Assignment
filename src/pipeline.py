@@ -88,71 +88,40 @@ def reorder_columns(df):
     return df[COLUMN_ORDER]
 
 
+
 def checks(df: pd.DataFrame) -> pd.DataFrame:
-    
     df = df.copy()
 
-    # 1. SMA & EMA
-    # df = add_moving_averages(df)
-    print("sma & ema shape:", df.shape)  # expected:(240, 13)
+    # 1. Shape: 10 tickers and 24 months
+    assert df.shape[0] == 240, f"expected 240 rows, got {df.shape[0]}"
 
-    # Check: NaNs per ticker
-    # Expected: sma_10 & ema_10 = 9 NaNs, sma_20 & ema_20 = 19 NaNs
-    # print(df.groupby("ticker")[["sma_10", "ema_10", "sma_20", "ema_20"]]
-    #          .apply(lambda g: g.isna().sum()))
+    # 1. SMA & EMA checks
+    # NaNs per ticker: sma_10/ema_10 = 9, sma_20/ema_20 = 19
+    nans = df.groupby("ticker")[["sma_10", "ema_10", "sma_20", "ema_20"]].apply(lambda g: g.isna().sum())
+    assert (nans[["sma_10", "ema_10"]] == 9).all().all(), "sma_10/ema_10 NaN count != 9"
+    assert (nans[["sma_20", "ema_20"]] == 19).all().all(), "sma_20/ema_20 NaN count != 19"
 
-    # setting up one ticker (AAPL) for row level checks on ema and sma
+    # EMA starts with SMA (check for AAPL on row 9)
     aapl = df[df.ticker == "AAPL"].reset_index(drop=True)
+    assert np.isclose(aapl.loc[9, "ema_10"], aapl.loc[9, "sma_10"]), "ema_10 does not start with sma_10"
 
-    # Check: EMA if starts with the SMA, so they match on the first countable (non NaN) row (month 10)
-    print("ema sarts with sma (row 9) : ",
-          np.isclose(aapl.loc[9, "ema_10"], aapl.loc[9, "sma_10"]))
-
-    # Check: manually checking ema calculation
-    # EMA_t = (close_t - EMA_{t-1}) * k + EMA_{t-1}, with k = 2 / (n + 1)
+    # Manual EMA calculation:
     k = 2 / (10 + 1)
     manual_ema = (aapl.loc[10, "close"] - aapl.loc[9, "ema_10"]) * k + aapl.loc[9, "ema_10"]
-    print("ema manual calculation : ", np.isclose(manual_ema, aapl.loc[10, "ema_10"]))
+    assert np.isclose(manual_ema, aapl.loc[10, "ema_10"]), "manual ema_10 mismatch"
 
- 
-    # 2. Bollinger Bands
-    # df = bollinger_bands(df)
-    print("bollinger shape:", df.shape)
+    # 2. Bollinger Bands: 9 NaNs per ticker
+    bb_nans = df.groupby("ticker")[["bb_mid_10", "bb_std_10", "bb_upper_10", "bb_lower_10"]].apply(lambda g: g.isna().sum())
+    assert (bb_nans == 9).all().all(), "bollinger NaN count != 9"
 
-    # Check: NaNs per ticker
-    # Expected: bb_mid_10, bb_std_10, bb_upper_10, bb_lower_10 -> 9 NaNs each
-    # print(df.groupby("ticker")[["bb_mid_10", "bb_std_10", "bb_upper_10", "bb_lower_10"]]
-    #          .apply(lambda g: g.isna().sum()))
+    # 3. Z-score: check for infinite values
+    assert np.isinf(df["zscore_10"]).sum() == 0, "infinite z-score found"
 
-
-
-    # 3. Z-score
-    # df = zscore(df)
-    print("z-score shape:", df.shape)
-
-    # Check: no infinite z-scores (guards against division by a zero std)
-    # Expected: 0
-    # print("z-score infinity counter : ", np.isinf(df["zscore_10"]).sum())
-
-
-    
     # 4. Donchian Channels
-    # df = donchian_channels(df)
-    print("donchian shape:", df.shape)
-
-    # Check: channel bounds contain the current month's high/low
-    # (the rolling window includes the current month)
-    # Expected: True, True
-    # valid = df.dropna(subset=["dc_upper_10"])
-    # print("donchian upper lower : ")
-    # print((valid["dc_upper_10"] >= valid["high"]).all())
-    # print((valid["dc_lower_10"] <= valid["low"]).all())
-
-    # Check: number of non-NaN channel values per ticker
-    # Expected: 15 per ticker
-    # print(df.groupby("ticker")["dc_upper_10"].count())
-
-    print(df)
+    valid = df.dropna(subset=["dc_upper_10"])  #removing NaNs for temporary checking
+    assert (valid["dc_upper_10"] >= valid["high"]).all(), "dc_upper_10 < high"
+    assert (valid["dc_lower_10"] <= valid["low"]).all(), "dc_lower_10 > low"
+    assert (df.groupby("ticker")["dc_upper_10"].count() == 15).all(), "donchian non-NaN count not 15"
 
     return df
 
@@ -181,7 +150,7 @@ def verify_outputs(paths: list[Path], expected_rows: int = EXPECTED_ROWS) -> Non
     for p in paths:
         n = len(pd.read_csv(p))
         assert n == expected_rows, f"{p.name}: {n} rows, expected {expected_rows}"
-    print(f"Verified {len(paths)} files, {expected_rows} rows each")
+    print(f"Verified output : {len(paths)} files, {expected_rows} rows each")
 
 
 def run_pipeline(input_path: str) -> pd.DataFrame:
@@ -191,9 +160,7 @@ def run_pipeline(input_path: str) -> pd.DataFrame:
     cdf = bollinger_bands(cdf)                  # add bollinger bands
     cdf = zscore(cdf)                           # add z-score
     cdf = donchian_channels(cdf)                # add donchian channels
-    cdf = checks(cdf)                           # perform checks on all operations
     cdf = reorder_columns(cdf)                  # reorder columns for consistency
-    write_partitions(cdf, 'output')             # writing 10 csv files, one for each ticker
     
     return cdf
 
@@ -201,6 +168,8 @@ def run_pipeline(input_path: str) -> pd.DataFrame:
 def main() -> None:
     root = Path(__file__).resolve().parent.parent    # pipeline.py to src to repo root
     cdf = run_pipeline(str(root/'data/output_file.csv'))
+
+    checks(cdf)
 
     paths = write_partitions(cdf, str(root/'output'))
     verify_outputs(paths)
