@@ -4,30 +4,15 @@ Converts 2 years of daily stock data (10 tickers) into monthly OHLC summaries wi
 
 ## Project structure
 
-data/
+data/ \
    -- output_file.csv  \
-src/
-   -- check.py
-   -- pipeline.py
-output/
-   -- result_{SYMBOL}.csv
-requirements.txt
-README.md
-
-
-
-| data/
-│   ── output_file.csv        # input: daily data, 10 tickers (5030 rows)
-├── src/
-│   ├── check.py               # verify download and integrity of input csv file
-│   └── pipeline.py            # runs the full pipeline (resamples to monthly, calculates and adds indicators, generates output files)
-├── output/
-│   └── result_{SYMBOL}.csv    # 10 files  with 24 rows each
-├── requirements.txt
-└── README.md
-
-
-
+src/ \
+   -- check.py \
+   -- pipeline.py \
+output/ \
+   -- result_{SYMBOL}.csv \
+requirements.txt \
+README.md \
 
 Calculation logic and file-writing logic live in separate functions/modules.
 
