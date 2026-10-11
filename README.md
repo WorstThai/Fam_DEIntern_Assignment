@@ -15,6 +15,8 @@ Converts 2 years of daily stock data (10 tickers) into monthly OHLC summaries wi
 └── README.md
 
 
+
+
 Calculation logic and file-writing logic live in separate functions/modules.
 
 
