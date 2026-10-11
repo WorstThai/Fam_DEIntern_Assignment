@@ -5,7 +5,7 @@ Converts 2 years of daily stock data (10 tickers) into monthly OHLC summaries wi
 ## Project structure
 
 data/
-   -- output_file.csv
+   -- output_file.csv  \
 src/
    -- check.py
    -- pipeline.py
